@@ -1,7 +1,11 @@
 const util = require('util')
 const fs = require('fs')
+const path = require('path')
 const _ = require('lodash')
 const beautify = require('js-beautify').js
+
+let dirGenerate = 'zmodel/'
+
 
 const BEAUTIFY_CONFIG = {
 	'indent_size': '2',
@@ -43,8 +47,9 @@ function createBaseModel() {
 	}
 }
 
-function generateModelFrontend(path) {
-	const models = require(path || '../models')
+async function generateModelFrontend(dir) {
+	let directory = path.resolve(dir || './models')
+	const models = require(directory)
 	let resultModel = {}
 	let a = 0
 	for(let nameModel in models) {
@@ -64,15 +69,25 @@ function generateModelFrontend(path) {
 		}
 	}
 
-	let datafile = fs.readFileSync('./utils/template-model.jsp', 'utf-8')
+	if (!fs.existsSync(dirGenerate)){
+		fs.mkdirSync(dirGenerate);
+	}
+
+	let datafile = fs.readFileSync([__dirname, 'template-model.jsp'].join('/'), 'utf-8')
 	let compiled = _.template(datafile)
 	for(let key in resultModel) {
 
 		let parseData = beautify(util.inspect(resultModel[key], {showHidden: true, depth: null}), BEAUTIFY_CONFIG)
 		let data = compiled({ data: parseData, models: [] })
-		fs.writeFileSync(`zmodel/${key}.js`, data)
+		fs.writeFileSync(`${dirGenerate}${key}.js`, data)
 	}
-	fs.writeFileSync(`zmodel/index.js`, compiled({models: Object.entries(resultModel), data: `{ ${Object.keys(resultModel).join(', ')} }`}))
+	fs.writeFileSync(`${dirGenerate}index.js`, compiled({models: Object.entries(resultModel), data: `{ ${Object.keys(resultModel).join(', ')} }`}))
+
+	try {
+		await models.sequelize.close()
+	} catch (e) {
+		console.log(e)
+	}
 }
 
 
