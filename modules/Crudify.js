@@ -43,6 +43,7 @@ function createBaseModel() {
 	return {
 		tableName: null,
 		modelName: null,
+		fileName: null,
 		fields: {}
 	}
 }
@@ -51,19 +52,22 @@ async function generateModelFrontend(dir) {
 	let directory = path.resolve(dir || './models')
 	const models = require(directory)
 	let resultModel = {}
-	let a = 0
 	for(let nameModel in models) {
 		let cloneModel = clone(models[nameModel])
 		if(cloneModel.tableAttributes) {
 			let curModel = createProperty(resultModel, nameModel, createBaseModel())
 			curModel.tableName = cloneModel.tableName
+			curModel.fileName = nameModel
 			for(let keyField in cloneModel.tableAttributes) {
 				let field = clone(cloneModel.rawAttributes[keyField])
+				let modelName = field.Model.options.name.singular
 				if(!curModel.modelName) {
-					curModel.modelName = util.inspect(field.Model)
+					curModel.modelName = modelName
 				}
 				field.type = field.type.key
 				field.Model = util.inspect(field.Model)
+				field.Model = modelName
+				delete field.validate
 				curModel.fields[keyField] = clone(field)
 			}
 		}
@@ -84,7 +88,14 @@ async function generateModelFrontend(dir) {
 	fs.writeFileSync(`${dirGenerate}index.js`, compiled({models: Object.entries(resultModel), data: `{ ${Object.keys(resultModel).join(', ')} }`}))
 
 	try {
-		await models.sequelize.close()
+		models.sequelize
+			.authenticate()
+			.then(async () => {
+				await models.sequelize.close()
+			})
+			.catch(err => {
+				console.error('Unable to connect to the database:', err);
+			});
 	} catch (e) {
 		console.log(e)
 	}
